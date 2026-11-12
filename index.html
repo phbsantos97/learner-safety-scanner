@@ -551,15 +551,23 @@ async function scanAgain() {
 
   if (processing) return;
 
+  // Hide previous result buttons
   document.getElementById('againButton').hidden = true;
-
   document.getElementById('dashboardButton').hidden = true;
 
+  // Reset status
   showStatus(
-    'Ready to scan another learner.',
+    'Preparing scanner for the next learner...',
     ''
   );
 
+  // Ensure previous camera session is stopped
+  await stopScanner();
+
+  // Reset processing state
+  processing = false;
+
+  // Start a fresh scanning session
   await startScanner();
 
 }
