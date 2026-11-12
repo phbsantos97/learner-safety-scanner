@@ -577,13 +577,35 @@ async function scanAgain() {
 // BACK TO TEACHER DASHBOARD
 // ==========================================
 
+
 function backToDashboard() {
 
   if (processing) return;
 
-  window.location.href = GAS_URL;
+  const params = new URLSearchParams(
+    window.location.search
+  );
+
+  const sessionToken = params.get('session');
+
+  if (!sessionToken) {
+
+    showStatus(
+      'Teacher session not found. Please log in again.',
+      'error'
+    );
+
+    return;
+
+  }
+
+  window.location.href =
+    GAS_URL +
+    '?page=dashboard&session=' +
+    encodeURIComponent(sessionToken);
 
 }
+
 
 
 // ==========================================
