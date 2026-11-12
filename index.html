@@ -10,58 +10,73 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-  * { box-sizing: border-box; }
+* { box-sizing: border-box; }
 
-  body {
-    margin: 0;
-    padding: 20px;
-    background: #f0fdf4;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    color: #14532d;
-  }
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #f0fdf4;
+  color: #14532d;
+  text-align: center;
+}
 
-  .container {
-    max-width: 500px;
-    margin: 20px auto;
-    padding: 22px;
-    background: white;
-    border-radius: 18px;
-    box-shadow: 0 5px 20px #0001;
-  }
+.container {
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 24px;
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 5px 20px #0001;
+}
 
-  h1 { font-size: 23px; }
+h1 { font-size: 23px; }
 
-  #reader {
-    width: 100%;
-    margin: 20px auto;
-  }
+#reader {
+  width: 100%;
+  margin: 20px auto;
+}
 
-  button {
-    padding: 13px 20px;
-    border: none;
-    border-radius: 9px;
-    background: #166534;
-    color: white;
-    font-size: 15px;
-    cursor: pointer;
-    margin: 5px;
-  }
+button {
+  padding: 13px 20px;
+  margin: 5px;
+  border: none;
+  border-radius: 9px;
+  background: #166534;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
 
-  button:disabled {
-    opacity: .5;
-  }
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
 
-  #status {
-    margin: 15px 0;
-    font-weight: bold;
-  }
+#status {
+  margin: 18px 0;
+  padding: 15px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
 
-  .note {
-    font-size: 13px;
-    color: #64748b;
-    line-height: 1.6;
-  }
+.success {
+  background: #dcfce7 !important;
+  color: #166534;
+}
+
+.error {
+  background: #fee2e2 !important;
+  color: #991b1b;
+}
+
+.note {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.6;
+}
 </style>
 </head>
 
@@ -72,43 +87,56 @@
   <h1>LEARNER SAFETY</h1>
   <h3>QR CODE SCANNER</h3>
 
-  <p>Scan the learner's QR code to record their safety status.</p>
+  <p>Scan the learner's official QR code.</p>
 
   <div id="reader"></div>
 
-  <div id="status">Ready to scan.</div>
+  <div id="status">
+    Ready to scan.
+  </div>
 
   <button id="startButton" onclick="startScanner()">
     START CAMERA
   </button>
 
-  <button onclick="stopScanner()">
+  <button id="stopButton" onclick="stopScanner()">
     STOP CAMERA
   </button>
 
+  <button id="againButton" onclick="scanAgain()" hidden>
+    SCAN ANOTHER LEARNER
+  </button>
+
   <p class="note">
-    Allow camera permission when requested.
-    After scanning, the system will open the
-    official safety confirmation page.
+    Allow camera access when requested.
+    Keep this page open while processing the learner's
+    safety record.
   </p>
 
 </div>
 
 <script>
 
+// YOUR EXISTING GOOGLE APPS SCRIPT DEPLOYMENT
 const GAS_URL =
-'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
 
 let scanner = null;
 let scanning = false;
 let processing = false;
 
+function showStatus(message, type) {
+  const box = document.getElementById('status');
+
+  box.className = type || '';
+  box.textContent = message;
+}
+
 async function startScanner() {
 
   if (processing || scanning) return;
 
-  document.getElementById('status').textContent =
-    'Opening camera...';
+  showStatus('Opening camera...', '');
 
   try {
     if (!scanner) {
@@ -127,72 +155,168 @@ async function startScanner() {
 
     scanning = true;
 
-    document.getElementById('status').textContent =
-      'Camera active. Scan a learner QR code.';
+    document.getElementById('startButton').disabled = true;
 
-  } catch(error) {
-    document.getElementById('status').textContent =
-      'Camera error: ' + error;
+    showStatus(
+      'CAMERA ACTIVE. Please scan a learner QR code.',
+      ''
+    );
+
+  } catch (error) {
+    showStatus(
+      'CAMERA ERROR: ' + String(error),
+      'error'
+    );
   }
 }
 
 async function stopScanner() {
+
   if (scanner && scanning) {
     try {
       await scanner.stop();
       scanning = false;
-    } catch(error) {
+    } catch (error) {
       console.log(error);
     }
   }
+
+  document.getElementById('startButton').disabled = false;
+}
+
+function extractToken(text) {
+
+  let url;
+
+  try {
+    url = new URL(text);
+  } catch (error) {
+    throw new Error('Invalid QR code.');
+  }
+
+  // Only accept our Apps Script or GitHub scanner URLs.
+  const allowed =
+    url.origin === 'https://script.google.com' ||
+    url.origin === 'https://phbsantos97.github.io';
+
+  if (!allowed) {
+    throw new Error('This is not an official learner QR code.');
+  }
+
+  const token = url.searchParams.get('token');
+
+  if (!token || !/^[a-f0-9-]{36}$/i.test(token)) {
+    throw new Error('Invalid learner QR token.');
+  }
+
+  return token;
 }
 
 async function onScanSuccess(decodedText) {
 
   if (processing) return;
 
-  let token = '';
+  let token;
 
   try {
-    const scannedUrl = new URL(decodedText);
-
-    // Only accept the official Apps Script scan URL.
-    if (
-      scannedUrl.origin !==
-      'https://script.google.com'
-    ) {
-      throw new Error('Unrecognized QR code.');
-    }
-
-    if (
-      scannedUrl.pathname.indexOf('/macros/s/') !== 0 ||
-      scannedUrl.searchParams.get('action') !== 'scan'
-    ) {
-      throw new Error('Invalid safety QR code.');
-    }
-
-    token = scannedUrl.searchParams.get('token');
-
-    if (!token || !/^[a-f0-9-]{36}$/i.test(token)) {
-      throw new Error('Invalid learner token.');
-    }
-
-  } catch(error) {
-    document.getElementById('status').textContent =
-      error.message;
+    token = extractToken(decodedText);
+  } catch (error) {
+    showStatus(error.message, 'error');
     return;
   }
 
   processing = true;
 
-  document.getElementById('status').textContent =
-    'QR recognized. Processing safety record...';
-
   await stopScanner();
 
-  window.location.href =
-    GAS_URL + '?action=scan&token=' +
-    encodeURIComponent(token);
+  document.getElementById('againButton').hidden = true;
+
+  showStatus(
+    'QR CODE RECOGNIZED. Updating learner safety record...',
+    ''
+  );
+
+  requestSafetyUpdate(token);
+}
+
+// JSONP: no cross-origin fetch required.
+function requestSafetyUpdate(token) {
+
+  // Fixed callback name; do not accept callback names from QR data.
+  const callbackName = 'learnerSafetyResponse';
+
+  window[callbackName] = function(result) {
+
+    if (script) {
+      script.remove();
+    }
+
+    delete window[callbackName];
+
+    processing = false;
+
+    if (result && result.success) {
+
+      let message =
+        'SUCCESS!\n\n' +
+        result.name +
+        '\n\n' +
+        result.message;
+
+      if (result.scannedAt) {
+        message += '\n\nScanned at: ' + result.scannedAt;
+      }
+
+      if (result.sms) {
+        message += '\n\nSMS: ' + result.sms;
+      }
+
+      showStatus(message, 'success');
+
+    } else {
+      showStatus(
+        'UPDATE FAILED: ' +
+        (result ? result.message : 'No response from server.'),
+        'error'
+      );
+    }
+
+    document.getElementById('againButton').hidden = false;
+  };
+
+  const script = document.createElement('script');
+
+  script.src =
+    GAS_URL +
+    '?action=scan' +
+    '&token=' + encodeURIComponent(token) +
+    '&callback=' + callbackName;
+
+  script.onerror = function() {
+
+    delete window[callbackName];
+    script.remove();
+
+    processing = false;
+
+    showStatus(
+      'CONNECTION ERROR. Please check the deployment URL, internet connection and Apps Script permissions.',
+      'error'
+    );
+
+    document.getElementById('againButton').hidden = false;
+  };
+
+  document.body.appendChild(script);
+}
+
+async function scanAgain() {
+
+  document.getElementById('againButton').hidden = true;
+
+  showStatus('Ready to scan another learner.', '');
+
+  await startScanner();
 }
 
 </script>
