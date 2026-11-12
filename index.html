@@ -119,8 +119,8 @@ button:disabled {
 
 // YOUR EXISTING GOOGLE APPS SCRIPT DEPLOYMENT
 const GAS_URL =
-'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
-
+'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
+  
 let scanner = null;
 let scanning = false;
 let processing = false;
@@ -240,43 +240,66 @@ async function onScanSuccess(decodedText) {
 }
 
 // JSONP: no cross-origin fetch required.
+
 function requestSafetyUpdate(token) {
 
-  // Fixed callback name; do not accept callback names from QR data.
-  const callbackName = 'learnerSafetyResponse';
+  const callbackName =
+    'learnerSafetyResponse_' + Date.now();
+
+  let finished = false;
+
+  const script = document.createElement('script');
+
+  const timeout = setTimeout(function() {
+    if (finished) return;
+
+    finished = true;
+    delete window[callbackName];
+    script.remove();
+
+    processing = false;
+
+    showStatus(
+      'TIMEOUT: Google Apps Script did not respond. Check your deployment URL and permissions.',
+      'error'
+    );
+
+    document.getElementById('againButton').hidden = false;
+
+  }, 20000);
 
   window[callbackName] = function(result) {
 
-    if (script) {
-      script.remove();
-    }
+    if (finished) return;
 
+    finished = true;
+    clearTimeout(timeout);
     delete window[callbackName];
+    script.remove();
 
     processing = false;
 
     if (result && result.success) {
 
       let message =
-        'SUCCESS!\n\n' +
+        'LEARNER SUCCESSFULLY MARKED SAFE!\n\n' +
         result.name +
-        '\n\n' +
-        result.message;
+        '\n' + result.message;
 
       if (result.scannedAt) {
-        message += '\n\nScanned at: ' + result.scannedAt;
+        message += '\nScanned: ' + result.scannedAt;
       }
 
       if (result.sms) {
-        message += '\n\nSMS: ' + result.sms;
+        message += '\nSMS: ' + result.sms;
       }
 
       showStatus(message, 'success');
 
     } else {
       showStatus(
-        'UPDATE FAILED: ' +
-        (result ? result.message : 'No response from server.'),
+        'SERVER ERROR: ' +
+        (result ? result.message : 'Invalid response'),
         'error'
       );
     }
@@ -284,28 +307,30 @@ function requestSafetyUpdate(token) {
     document.getElementById('againButton').hidden = false;
   };
 
-  const script = document.createElement('script');
-
-  script.src =
-    GAS_URL +
-    '?action=scan' +
-    '&token=' + encodeURIComponent(token) +
-    '&callback=' + callbackName;
-
   script.onerror = function() {
 
+    if (finished) return;
+
+    finished = true;
+    clearTimeout(timeout);
     delete window[callbackName];
     script.remove();
 
     processing = false;
 
     showStatus(
-      'CONNECTION ERROR. Please check the deployment URL, internet connection and Apps Script permissions.',
+      'GOOGLE APPS SCRIPT CONNECTION FAILED. The request could not load. Verify the deployed /exec URL and web app access settings.',
       'error'
     );
 
     document.getElementById('againButton').hidden = false;
   };
+
+  script.src =
+    GAS_URL +
+    '?action=scan' +
+    '&token=' + encodeURIComponent(token) +
+    '&callback=' + callbackName;
 
   document.body.appendChild(script);
 }
