@@ -1,782 +1,112 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <title>Learner Safety QR Scanner</title>
-
   <script src="https://unpkg.com/html5-qrcode"></script>
-
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 18px;
-      font-family: Arial, sans-serif;
-      background: #f1f5f9;
-      color: #172033;
-    }
-
-    .container {
-      max-width: 500px;
-      margin: 20px auto;
-      background: white;
-      padding: 22px;
-      border-radius: 18px;
-      box-shadow: 0 5px 20px #0001;
-      text-align: center;
-    }
-
-    h2 {
-      color: #166534;
-    }
-
-    #reader {
-      width: 100%;
-      margin: 20px auto;
-      overflow: hidden;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      border: 0;
-      border-radius: 9px;
-      margin: 6px 0;
-      font-size: 15px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
-
-    .start {
-      background: #15803d;
-      color: white;
-    }
-
-    .stop {
-      background: #dc2626;
-      color: white;
-    }
-
-    .another {
-      background: #2563eb;
-      color: white;
-    }
-
-    .back {
-      background: #e2e8f0;
-      color: #172033;
-    }
-
-    #result {
-      display: none;
-      padding: 18px;
-      margin: 15px 0;
-      border-radius: 12px;
-      background: #f0fdf4;
-      overflow-wrap: anywhere;
-    }
-
-    #result.error {
-      background: #fef2f2;
-    }
-
-    #result h3 {
-      margin-top: 0;
-    }
-
-    .successText {
-      color: #15803d;
-    }
-
-    .errorText {
-      color: #dc2626;
-    }
-
-    .small {
-      font-size: 12px;
-      color: #64748b;
-    }
-
-    .status {
-      padding: 10px;
-      background: #f8fafc;
-      border-radius: 8px;
-    }
+    *{box-sizing:border-box}
+    body{margin:0;background:#f1f5f9;color:#172033;font-family:Arial,sans-serif}
+    header{background:#14532d;color:#fff;padding:18px;text-align:center}
+    main{max-width:620px;margin:22px auto;padding:16px}
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 3px 14px #0001}
+    #reader{width:100%;margin:16px auto}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    button,a.btn{border:0;border-radius:8px;padding:12px 16px;font:inherit;text-decoration:none;cursor:pointer}
+    .primary{background:#166534;color:#fff}.secondary{background:#e2e8f0;color:#172033}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    #result{margin-top:16px;padding:14px;border-radius:10px;display:none;white-space:pre-wrap}
+    .good{display:block!important;background:#dcfce7;color:#166534}
+    .bad{display:block!important;background:#fee2e2;color:#991b1b}
+    .muted{color:#64748b;font-size:13px}
   </style>
 </head>
-
 <body>
-
-<div class="container">
-
-  <h2>LEARNER SAFETY</h2>
-
-  <p>QR Code Monitoring Scanner</p>
-
-  <p class="small status" id="connection">
-    Checking teacher session...
-  </p>
-
+<header><h2>LEARNER SAFETY MONITORING</h2><div>QR Code Scanner</div></header>
+<main><section class="card">
+  <h3>Scan learner QR code</h3>
+  <p class="muted">Allow camera access. After a successful scan, the learner will be marked SAFE and the guardian SMS process will run if configured.</p>
   <div id="reader"></div>
-
-  <button class="start" id="startBtn" disabled>
-    START CAMERA
-  </button>
-
-  <button class="stop" id="stopBtn" disabled>
-    STOP CAMERA
-  </button>
-
-  <div id="result" aria-live="polite"></div>
-
-  <button class="another" id="anotherBtn" disabled>
-    SCAN ANOTHER LEARNER
-  </button>
-
-  <button class="back" id="backBtn">
-    BACK TO DASHBOARD
-  </button>
-
-  <p class="small">
-    Scan the learner's assigned QR code to record
-    the learner as SAFE.
-  </p>
-
-</div>
-
+  <div class="actions">
+    <button id="startBtn" class="primary" onclick="startCamera()">START CAMERA</button>
+    <button id="stopBtn" class="secondary" onclick="stopCamera()" disabled>STOP CAMERA</button>
+    <button class="secondary" onclick="scanAnother()">SCAN ANOTHER LEARNER</button>
+  </div>
+  <div id="result" role="status" aria-live="polite"></div>
+  <p class="muted">If camera access does not work inside Facebook Messenger, open this page in Chrome or another browser.</p>
+  <a id="backBtn" class="btn primary" href="#">BACK TO DASHBOARD</a>
+</section></main>
 <script>
-
-/************************************************
- CONFIGURATION
-************************************************/
-
-
-const params = new URLSearchParams(
-  window.location.search
-);
-
-const SESSION = params.get('session') || '';
-
-const API_URL = params.get('api') ||
-  'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
-
-const DASHBOARD_URL = params.get('dashboard') ||
-  API_URL;
-
-const DASHBOARD_SESSION =
-  params.get('dashboardSession') || SESSION;
-
-// Validate configuration.
-if (!SESSION) {
-  console.error('Teacher session is missing.');
-}
-
-if (!API_URL.startsWith('https://script.google.com/')) {
-  console.error('Invalid Apps Script API URL.');
-}
-
-if (!DASHBOARD_SESSION) {
-  console.error('Dashboard session is missing.');
-}
-
-
-
-/************************************************
- ELEMENTS
-************************************************/
-
-const connection =
-  document.getElementById('connection');
-
-const startBtn =
-  document.getElementById('startBtn');
-
-const stopBtn =
-  document.getElementById('stopBtn');
-
-const anotherBtn =
-  document.getElementById('anotherBtn');
-
-const backBtn =
-  document.getElementById('backBtn');
-
-const resultBox =
-  document.getElementById('result');
-
-
-/************************************************
- VARIABLES
-************************************************/
-
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+const params = new URLSearchParams(location.search);
+const dashboardUrl = params.get('dashboard');
+const session = params.get('session') || '';
+document.getElementById('backBtn').href = dashboardUrl ||
+  (SCRIPT_URL + '?page=dashboard&session=' + encodeURIComponent(session));
+ 
 let scanner = null;
-let scanning = false;
+let running = false;
 let processing = false;
-let sessionValid = false;
-let lastToken = '';
-
-let requestTimeout = null;
-
-
-/************************************************
- INITIALIZATION
-************************************************/
-
-window.addEventListener('load', initializeScanner);
-
-async function initializeScanner() {
-
-  if (!SESSION || !API_URL || !DASHBOARD_URL) {
-
-    connection.textContent =
-      'Invalid session. Open the scanner from the teacher dashboard.';
-
-    startBtn.disabled = true;
-
-    return;
-  }
-
-  connection.textContent =
-    'Validating teacher session...';
-
-  sessionValid = await validateTeacherSession();
-
-  if (!sessionValid) {
-
-    startBtn.disabled = true;
-
-    return;
-  }
-
-  try {
-
-    scanner = new Html5Qrcode('reader');
-
-    connection.textContent =
-      'Teacher session connected. Ready to scan.';
-
-    startBtn.disabled = false;
-
-  } catch (error) {
-
-    connection.textContent =
-      'Unable to initialize QR scanner.';
-
-    showMessage(
-      'QR scanner initialization failed.',
-      true
-    );
-
-  }
-
+ 
+async function startCamera(){
+  if(running) return;
+  try{
+    if(!scanner) scanner = new Html5Qrcode('reader');
+    const cameras = await Html5Qrcode.getCameras();
+    if(!cameras || !cameras.length) throw new Error('No camera was detected.');
+    const preferred = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[0];
+    await scanner.start(preferred.id, {fps:10, qrbox:{width:240,height:240}},
+      onScanSuccess, function(){});
+    running = true;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    showResult('Camera started. Point it at a learner QR code.', 'good');
+  }catch(err){showResult('Unable to start camera: ' + err.message, 'bad');}
 }
-
-
-/************************************************
- SESSION VALIDATION
-************************************************/
-
-
-async function validateTeacherSession() {
-
-  return new Promise((resolve) => {
-
-    const callbackName =
-      'validateCallback_' +
-      Date.now() +
-      '_' +
-      Math.floor(Math.random() * 10000);
-
-    const script = document.createElement('script');
-
-    let finished = false;
-
-    function cleanup() {
-
-      if (finished) return;
-
-      finished = true;
-
-      clearTimeout(timeout);
-
-      delete window[callbackName];
-
-      script.remove();
-
-    }
-
-    function finish(valid) {
-
-      cleanup();
-
-      resolve(valid);
-
-    }
-
-    window[callbackName] = function(data) {
-
-      if (data && data.valid === true) {
-
-        finish(true);
-
-      } else {
-
-        connection.textContent =
-          'Teacher session expired. Please log in again.';
-
-        showMessage(
-          data && data.message
-            ? data.message
-            : 'Invalid teacher session.',
-          true
-        );
-
-        finish(false);
-
-      }
-
-    };
-
-    const url = new URL(API_URL);
-
-    url.searchParams.set(
-      'action',
-      'validateSession'
-    );
-
-    url.searchParams.set(
-      'session',
-      SESSION
-    );
-
-    url.searchParams.set(
-      'callback',
-      callbackName
-    );
-
-    const timeout = setTimeout(function() {
-
-      cleanup();
-
-      connection.textContent =
-        'Unable to validate teacher session.';
-
-      showMessage(
-        'Session validation timed out. Check your internet connection.',
-        true
-      );
-
-      resolve(false);
-
-    }, 15000);
-
-    script.onerror = function() {
-
-      cleanup();
-
-      connection.textContent =
-        'Unable to connect to Google Apps Script.';
-
-      showMessage(
-        'Session validation failed. Check your Apps Script deployment.',
-        true
-      );
-
-      resolve(false);
-
-    };
-
-    script.src = url.toString();
-
-    document.body.appendChild(script);
-
-  });
-
+async function stopCamera(){
+  if(!scanner || !running) return;
+  try{await scanner.stop(); running=false;}catch(e){}
+  document.getElementById('startBtn').disabled=false;
+  document.getElementById('stopBtn').disabled=true;
 }
-
-/************************************************
- START CAMERA
-************************************************/
-
-startBtn.addEventListener('click', startCamera);
-
-async function startCamera() {
-
-  if (
-    !scanner ||
-    !sessionValid ||
-    scanning ||
-    processing
-  ) {
-    return;
-  }
-
-  try {
-
-    await scanner.start(
-
-      { facingMode: 'environment' },
-
-      {
-        fps: 10,
-        qrbox: {
-          width: 250,
-          height: 250
-        }
-      },
-
-      onScanSuccess,
-
-      function() {}
-
-    );
-
-    scanning = true;
-
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    anotherBtn.disabled = true;
-
-    connection.textContent =
-      'Camera active. Ready to scan.';
-
-    showMessage(
-      'Camera started. Point it at the learner QR code.',
-      false
-    );
-
-  } catch (error) {
-
-    showMessage(
-      'Camera error: ' + String(error),
-      true
-    );
-
-  }
-
-}
-
-
-/************************************************
- STOP CAMERA
-************************************************/
-
-stopBtn.addEventListener('click', stopCamera);
-
-async function stopCamera() {
-
-  if (!scanner || !scanning) return;
-
-  try {
-
-    await scanner.stop();
-
-    scanning = false;
-
-    startBtn.disabled = !sessionValid;
-    stopBtn.disabled = true;
-
-  } catch (error) {
-
-    console.error('Camera stop error:', error);
-
-  }
-
-}
-
-
-/************************************************
- QR SCAN SUCCESS
-************************************************/
-
-async function onScanSuccess(decodedText) {
-
-  if (processing || !sessionValid) return;
-
-  const token = String(decodedText).trim();
-
-  // Validate UUID format.
-
-  if (
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(token)
-  ) {
-
-    showMessage(
-      'Invalid learner QR code. Please scan an assigned learner QR code.',
-      true
-    );
-
-    return;
-  }
-
-  processing = true;
-  lastToken = token;
-
-  anotherBtn.disabled = true;
-
-  await stopCamera();
-
-  showMessage(
-    'QR detected. Updating learner safety record...',
-    false
-  );
-
-  sendScanRequest(token);
-
-}
-
-
-/************************************************
- SEND SCAN REQUEST
-************************************************/
-
-function sendScanRequest(token) {
-
-  const callbackName =
-    'scanCallback_' +
-    Date.now() +
-    '_' +
-    Math.floor(Math.random() * 10000);
-
-  const script =
-    document.createElement('script');
-
-  let completed = false;
-
-  function cleanup() {
-
-    if (completed) return;
-
-    completed = true;
-
-    clearTimeout(requestTimeout);
-
-    delete window[callbackName];
-
-    script.remove();
-
-  }
-
-  function finish(data, failed) {
-
-    cleanup();
-
-    processing = false;
-
-    anotherBtn.disabled = false;
-
-    if (failed) {
-
-      showMessage(
-        data || 'Unable to contact the monitoring system.',
-        true
-      );
-
-      return;
+function onScanSuccess(decodedText){
+  if(processing) return;
+  processing=true;
+  stopCamera();
+  const token = String(decodedText || '').trim();
+  if(!token){processing=false;showResult('Invalid QR code.', 'bad');return;}
+  showResult('Verifying learner…', 'good');
+  const callback = 'qrCallback_' + Date.now();
+  window[callback] = function(result){
+    delete window[callback];
+    const scriptTag = document.getElementById(callback);
+    if(scriptTag) scriptTag.remove();
+    if(result && result.success){
+      let message = (result.name || 'Learner') + '\n' + (result.message || 'Marked SAFE.');
+      if(result.scannedAt) message += '\nScanned at: ' + result.scannedAt;
+      if(result.sms) message += '\nGuardian SMS: ' + result.sms;
+      showResult(message, 'good');
+    }else{
+      showResult((result && result.message) || 'Scan failed.', 'bad');
     }
-
-    if (!data || data.success !== true) {
-
-      showMessage(
-        data && data.message
-          ? data.message
-          : 'Scan failed.',
-        true
-      );
-
-      return;
-    }
-
-    if (data.alreadySafe) {
-
-      showMessage(
-        'ALREADY SAFE\n' +
-        (data.name || 'Learner') +
-        '\n' +
-        (data.message || 'Learner was previously marked safe.') +
-        '\nSMS: ' +
-        (data.sms || 'Previously processed'),
-        false
-      );
-
-    } else {
-
-      showMessage(
-        'LEARNER SUCCESSFULLY MARKED SAFE!\n' +
-        (data.name || 'Learner') +
-        '\nScanned: ' +
-        (data.scannedAt || '') +
-        '\nSMS: ' +
-        (data.sms || 'Not available'),
-        false
-      );
-
-    }
-
-  }
-
-  window[callbackName] = function(data) {
-
-    finish(data, false);
-
   };
-
-  const url = new URL(API_URL);
-
-  url.searchParams.set('action', 'scan');
-  url.searchParams.set('token', token);
-  url.searchParams.set('session', SESSION);
-  url.searchParams.set('callback', callbackName);
-
-  script.src = url.toString();
-
-  script.onerror = function() {
-
-    finish(
-      'Unable to contact the monitoring system.',
-      true
-    );
-
-  };
-
-  requestTimeout = setTimeout(function() {
-
-    finish(
-      'Request timed out. Check your internet connection.',
-      true
-    );
-
-  }, 30000);
-
-  document.body.appendChild(script);
-
+  const s=document.createElement('script');
+  s.id=callback;
+  s.src=SCRIPT_URL+'?action=scan&token='+encodeURIComponent(token)+'&callback='+callback;
+  s.onerror=function(){delete window[callback];s.remove();showResult('Could not contact the safety system. Check your connection and try again.', 'bad');};
+  document.body.appendChild(s);
 }
-
-
-/************************************************
- SCAN ANOTHER LEARNER
-************************************************/
-
-anotherBtn.addEventListener(
-  'click',
-  scanAnother
-);
-
-async function scanAnother() {
-
-  if (scanning || processing || !sessionValid) {
-    return;
-  }
-
-  lastToken = '';
-
-  resultBox.style.display = 'none';
-
-  anotherBtn.disabled = true;
-
-  await startCamera();
-
+function scanAnother(){
+  processing=false;
+  showResult('Ready for the next learner.', 'good');
+  startCamera();
 }
-
-
-/************************************************
- BACK TO DASHBOARD
-************************************************/
-
-backBtn.addEventListener(
-  'click',
-  backDashboard
-);
-
-async function backDashboard() {
-
-  if (scanning) {
-    await stopCamera();
-  }
-
-  if (!DASHBOARD_URL || !DASHBOARD_SESSION) {
-
-    showMessage(
-      'Dashboard link or teacher session is missing.',
-      true
-    );
-
-    return;
-  }
-
-  try {
-
-    const url = new URL(DASHBOARD_URL);
-
-    url.searchParams.set(
-      'page',
-      'dashboard'
-    );
-
-    url.searchParams.set(
-      'session',
-      DASHBOARD_SESSION
-    );
-
-    window.location.href = url.toString();
-
-  } catch (error) {
-
-    showMessage(
-      'Invalid dashboard URL.',
-      true
-    );
-
-  }
-
+function showResult(message, kind){
+  const el=document.getElementById('result');
+  el.textContent=message;
+  el.className=kind;
 }
-
-
-/************************************************
- RESULT DISPLAY
-************************************************/
-
-function showMessage(message, error) {
-
-  resultBox.style.display = 'block';
-
-  resultBox.className =
-    error ? 'error' : '';
-
-  const heading =
-    document.createElement('h3');
-
-  heading.className =
-    error ? 'errorText' : 'successText';
-
-  heading.textContent =
-    error ? 'SCAN FAILED' : 'SCAN RESULT';
-
-  const paragraph =
-    document.createElement('p');
-
-  // textContent prevents HTML injection.
-  paragraph.style.whiteSpace = 'pre-line';
-  paragraph.textContent = String(message);
-
-  resultBox.replaceChildren(
-    heading,
-    paragraph
-  );
-
-}
-
 </script>
-
 </body>
 </html>
