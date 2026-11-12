@@ -1,112 +1,201 @@
 
-/* =====================================
-   GOOGLE APPS SCRIPT CONNECTION
-===================================== */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-// Replace with your actual deployed Apps Script URL.
-const GOOGLE_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
+<title>Learner Safety QR Scanner</title>
 
-// Read temporary session from URL fragment.
-const params = new URLSearchParams(
-  window.location.hash.substring(1)
-);
+<script src="https://unpkg.com/html5-qrcode"></script>
 
-const SCANNER_SESSION = params.get('session');
+<style>
+  * { box-sizing: border-box; }
 
-if (!SCANNER_SESSION) {
-  alert('No teacher authorization found. Please open the scanner from the Teacher Dashboard.');
-}
-
-
-/* =====================================
-   SEND SCANNED QR TO GOOGLE SHEETS
-===================================== */
-
-function sendToGoogleSheets(qrToken) {
-
-  if (!SCANNER_SESSION) {
-    alert('Teacher session missing. Please reconnect.');
-    return;
+  body {
+    margin: 0;
+    padding: 20px;
+    background: #f0fdf4;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    color: #14532d;
   }
 
-  if (!qrToken) {
-    alert('Invalid QR code.');
-    return;
+  .container {
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 22px;
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 5px 20px #0001;
   }
 
-  const callbackName =
-    'learnerScanCallback_' + Date.now();
+  h1 { font-size: 23px; }
 
-  const url = new URL(GOOGLE_SCRIPT_URL);
+  #reader {
+    width: 100%;
+    margin: 20px auto;
+  }
 
-  url.searchParams.set('action', 'scan');
-  url.searchParams.set('session', SCANNER_SESSION);
-  url.searchParams.set('token', qrToken);
-  url.searchParams.set('callback', callbackName);
-  url.searchParams.set('cache', String(Date.now()));
+  button {
+    padding: 13px 20px;
+    border: none;
+    border-radius: 9px;
+    background: #166534;
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+    margin: 5px;
+  }
 
-  // Receive Google Apps Script response.
-  window[callbackName] = function(result) {
+  button:disabled {
+    opacity: .5;
+  }
 
-    delete window[callbackName];
+  #status {
+    margin: 15px 0;
+    font-weight: bold;
+  }
 
-    const oldScript = document.getElementById(
-      callbackName
-    );
+  .note {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+  }
+</style>
+</head>
 
-    if (oldScript) oldScript.remove();
+<body>
 
-    if (result.success) {
+<div class="container">
 
-      if (result.duplicate) {
-        alert(
-          'ALREADY COUNTED\n' +
-          result.name +
-          '\nNo duplicate SMS was sent.'
-        );
-      } else {
-        alert(
-          'LEARNER SUCCESSFULLY COUNTED!\n' +
-          result.name +
-          '\nStatus: ' + result.status +
-          '\nSMS: ' + result.sms
-        );
-      }
+  <h1>LEARNER SAFETY</h1>
+  <h3>QR CODE SCANNER</h3>
 
-    } else {
+  <p>Scan the learner's QR code to record their safety status.</p>
 
-      alert(
-        'SCAN FAILED!\n' + result.message
-      );
+  <div id="reader"></div>
 
+  <div id="status">Ready to scan.</div>
+
+  <button id="startButton" onclick="startScanner()">
+    START CAMERA
+  </button>
+
+  <button onclick="stopScanner()">
+    STOP CAMERA
+  </button>
+
+  <p class="note">
+    Allow camera permission when requested.
+    After scanning, the system will open the
+    official safety confirmation page.
+  </p>
+
+</div>
+
+<script>
+
+const GAS_URL =
+'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
+
+let scanner = null;
+let scanning = false;
+let processing = false;
+
+async function startScanner() {
+
+  if (processing || scanning) return;
+
+  document.getElementById('status').textContent =
+    'Opening camera...';
+
+  try {
+    if (!scanner) {
+      scanner = new Html5Qrcode('reader');
     }
 
-  };
+    await scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 }
+      },
+      onScanSuccess,
+      function() {}
+    );
 
-  // Load JSONP response.
-  const script = document.createElement('script');
+    scanning = true;
 
-  script.id = callbackName;
-  script.src = url.toString();
+    document.getElementById('status').textContent =
+      'Camera active. Scan a learner QR code.';
 
-  script.onerror = function() {
-    delete window[callbackName];
-    script.remove();
-    alert('Unable to connect to Google Apps Script.');
-  };
-
-  document.body.appendChild(script);
+  } catch(error) {
+    document.getElementById('status').textContent =
+      'Camera error: ' + error;
+  }
 }
 
-
-/* =====================================
-   CALL THIS AFTER QR DECODING
-===================================== */
-
-function onLearnerQRDetected(decodedText) {
-
-  // The decoded QR should contain the learner's token.
-  sendToGoogleSheets(decodedText);
-
+async function stopScanner() {
+  if (scanner && scanning) {
+    try {
+      await scanner.stop();
+      scanning = false;
+    } catch(error) {
+      console.log(error);
+    }
+  }
 }
+
+async function onScanSuccess(decodedText) {
+
+  if (processing) return;
+
+  let token = '';
+
+  try {
+    const scannedUrl = new URL(decodedText);
+
+    // Only accept the official Apps Script scan URL.
+    if (
+      scannedUrl.origin !==
+      'https://script.google.com'
+    ) {
+      throw new Error('Unrecognized QR code.');
+    }
+
+    if (
+      scannedUrl.pathname.indexOf('/macros/s/') !== 0 ||
+      scannedUrl.searchParams.get('action') !== 'scan'
+    ) {
+      throw new Error('Invalid safety QR code.');
+    }
+
+    token = scannedUrl.searchParams.get('token');
+
+    if (!token || !/^[a-f0-9-]{36}$/i.test(token)) {
+      throw new Error('Invalid learner token.');
+    }
+
+  } catch(error) {
+    document.getElementById('status').textContent =
+      error.message;
+    return;
+  }
+
+  processing = true;
+
+  document.getElementById('status').textContent =
+    'QR recognized. Processing safety record...';
+
+  await stopScanner();
+
+  window.location.href =
+    GAS_URL + '?action=scan&token=' +
+    encodeURIComponent(token);
+}
+
+</script>
+
+</body>
+</html>
