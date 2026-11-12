@@ -162,14 +162,69 @@ button:disabled {
  CONFIGURATION
 ************************************************/
 
-const params = new URLSearchParams(
-  window.location.search
-);
+
+const params = new URLSearchParams(window.location.search);
 
 const SESSION = params.get('session') || '';
-const API_URL = params.get('api') || '';
+
+const API_URL = params.get('api') ||
+  'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+
 const DASHBOARD_URL = params.get('dashboard') || '';
 
+const DASHBOARD_SESSION =
+  params.get('dashboardSession') || SESSION;
+
+
+async function validateTeacherSession() {
+
+  if (!SESSION || !API_URL) {
+
+    showMessage(
+      'Invalid session. Open the scanner from the teacher dashboard.',
+      true
+    );
+
+    return false;
+  }
+
+  try {
+
+    const url = new URL(API_URL);
+
+    url.searchParams.set('action', 'validateSession');
+    url.searchParams.set('session', SESSION);
+
+    const response = await fetch(url.toString());
+
+    const result = await response.json();
+
+    if (!result.valid) {
+
+      showMessage(
+        'Teacher session expired. Please log in again.',
+        true
+      );
+
+      return false;
+    }
+
+    return true;
+
+  } catch (error) {
+
+    showMessage(
+      'Unable to connect to Google Apps Script.',
+      true
+    );
+
+    return false;
+
+  }
+
+}
+
+ 
 let scanner = null;
 let scanning = false;
 let processing = false;
