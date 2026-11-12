@@ -446,15 +446,41 @@ async function scanAnother() {
  BACK TO DASHBOARD
 ************************************************/
 
+
 async function backDashboard() {
 
   if (scanning) {
     await stopCamera();
   }
 
-  window.location.href = DASHBOARD_URL;
+  // Return to the Apps Script web app.
+  // Do not destroy the current teacher session.
+
+  const dashboard =
+    params.get('dashboard') || '';
+
+  const session =
+    params.get('dashboardSession') || SESSION;
+
+  if (!dashboard || !session) {
+
+    showMessage(
+      'Dashboard link or teacher session is missing. Please open the scanner from the teacher dashboard.',
+      true
+    );
+
+    return;
+  }
+
+  const url = new URL(dashboard);
+
+  url.searchParams.set('page', 'dashboard');
+  url.searchParams.set('session', session);
+
+  window.location.replace(url.toString());
 
 }
+
 
 /************************************************
  RESULT DISPLAY
