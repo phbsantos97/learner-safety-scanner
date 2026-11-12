@@ -161,6 +161,7 @@
  CONFIGURATION
 ************************************************/
 
+
 const params = new URLSearchParams(
   window.location.search
 );
@@ -175,6 +176,20 @@ const DASHBOARD_URL = params.get('dashboard') ||
 
 const DASHBOARD_SESSION =
   params.get('dashboardSession') || SESSION;
+
+// Validate configuration.
+if (!SESSION) {
+  console.error('Teacher session is missing.');
+}
+
+if (!API_URL.startsWith('https://script.google.com/')) {
+  console.error('Invalid Apps Script API URL.');
+}
+
+if (!DASHBOARD_SESSION) {
+  console.error('Dashboard session is missing.');
+}
+
 
 
 /************************************************
