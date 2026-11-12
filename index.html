@@ -1,112 +1,295 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Learner Safety QR Scanner</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    *{box-sizing:border-box}
-    body{margin:0;background:#f1f5f9;color:#172033;font-family:Arial,sans-serif}
-    header{background:#14532d;color:#fff;padding:18px;text-align:center}
-    main{max-width:620px;margin:22px auto;padding:16px}
-    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 3px 14px #0001}
-    #reader{width:100%;margin:16px auto}
-    .actions{display:flex;gap:10px;flex-wrap:wrap}
-    button,a.btn{border:0;border-radius:8px;padding:12px 16px;font:inherit;text-decoration:none;cursor:pointer}
-    .primary{background:#166534;color:#fff}.secondary{background:#e2e8f0;color:#172033}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    #result{margin-top:16px;padding:14px;border-radius:10px;display:none;white-space:pre-wrap}
-    .good{display:block!important;background:#dcfce7;color:#166534}
-    .bad{display:block!important;background:#fee2e2;color:#991b1b}
-    .muted{color:#64748b;font-size:13px}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learner Safety Scanner</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#172033}
+.app{max-width:640px;min-height:100vh;margin:auto;padding:32px 22px;background:white;border-radius:20px;text-align:center}
+h1{color:#166534;font-size:30px;margin:14px 0 24px}
+.subtitle{font-size:20px;margin-bottom:20px}
+.notice{padding:13px;background:#f1f5f9;border-radius:12px;color:#64748b;font-size:14px;line-height:1.5}
+.success{background:#dcfce7;color:#166534}
+.error{background:#fee2e2;color:#991b1b}
+#reader{width:100%;max-width:440px;margin:18px auto}
+button{width:100%;padding:17px 12px;margin-top:14px;border:0;border-radius:12px;font-size:17px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+#startButton{background:#86bd9b;color:white}
+#stopButton{background:#ef8d8d;color:white}
+#anotherButton{background:#8eacf0;color:white}
+#backButton{background:#e2e8f0;color:#172033}
+.result{display:none;background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:12px;margin-top:18px;text-align:left}
+.result.visible{display:block}
+.result h2{color:#166534}
+.instructions{color:#64748b;font-size:14px;margin-top:22px;line-height:1.5}
+</style>
 </head>
 <body>
-<header><h2>LEARNER SAFETY MONITORING</h2><div>QR Code Scanner</div></header>
-<main><section class="card">
-  <h3>Scan learner QR code</h3>
-  <p class="muted">Allow camera access. After a successful scan, the learner will be marked SAFE and the guardian SMS process will run if configured.</p>
-  <div id="reader"></div>
-  <div class="actions">
-    <button id="startBtn" class="primary" onclick="startCamera()">START CAMERA</button>
-    <button id="stopBtn" class="secondary" onclick="stopCamera()" disabled>STOP CAMERA</button>
-    <button class="secondary" onclick="scanAnother()">SCAN ANOTHER LEARNER</button>
-  </div>
-  <div id="result" role="status" aria-live="polite"></div>
-  <p class="muted">If camera access does not work inside Facebook Messenger, open this page in Chrome or another browser.</p>
-  <a id="backBtn" class="btn primary" href="#">BACK TO DASHBOARD</a>
-</section></main>
+<main class="app">
+<h1>LEARNER SAFETY</h1>
+<p class="subtitle">QR Code Monitoring Scanner</p>
+
+<div id="message" class="notice">Checking session...</div>
+<div id="reader"></div>
+
+<div id="result" class="result">
+<h2 id="resultHeading"></h2>
+<p id="resultName"></p>
+<p id="resultMessage"></p>
+<p id="resultTime"></p>
+<p id="resultSms"></p>
+</div>
+
+<button id="startButton">START CAMERA</button>
+<button id="stopButton" disabled>STOP CAMERA</button>
+<button id="anotherButton" disabled>SCAN ANOTHER LEARNER</button>
+<button id="backButton">BACK TO DASHBOARD</button>
+
+<p class="instructions">
+Scan the learner's assigned QR code to record the learner as SAFE.
+</p>
+<p class="instructions">
+If the camera does not open in Facebook Messenger, open this page in Chrome and allow camera access.
+</p>
+</main>
+
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+'use strict';
+
+// YOUR GOOGLE APPS SCRIPT WEB APP
+const APPS_SCRIPT_URL =
+'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+
+// RECEIVE SESSION FROM TEACHER DASHBOARD
 const params = new URLSearchParams(location.search);
-const dashboardUrl = params.get('dashboard');
-const session = params.get('session') || '';
-document.getElementById('backBtn').href = dashboardUrl ||
-  (SCRIPT_URL + '?page=dashboard&session=' + encodeURIComponent(session));
- 
+const sessionToken = params.get('session') || '';
+
+const dashboardUrl = APPS_SCRIPT_URL +
+'?page=dashboard&session=' + encodeURIComponent(sessionToken);
+
+const message = document.getElementById('message');
+const resultBox = document.getElementById('result');
+const startButton = document.getElementById('startButton');
+const stopButton = document.getElementById('stopButton');
+const anotherButton = document.getElementById('anotherButton');
+
 let scanner = null;
-let running = false;
+let cameraRunning = false;
 let processing = false;
- 
+let lastScan = '';
+let lastScanTime = 0;
+
+function showMessage(text,type=''){
+message.textContent=text;
+message.className='notice '+type;
+}
+
+function setButtons(running){
+cameraRunning=running;
+startButton.disabled=running||processing;
+stopButton.disabled=!running;
+anotherButton.disabled=running||processing;
+}
+
+function displayResult(data){
+resultBox.classList.add('visible');
+document.getElementById('resultHeading').textContent=
+data.success?'LEARNER SAFETY UPDATE':'SCAN FAILED';
+document.getElementById('resultName').textContent=
+data.name?'Learner: '+data.name:'';
+document.getElementById('resultMessage').textContent=data.message||'';
+document.getElementById('resultTime').textContent=
+data.scannedAt?'Scanned at: '+data.scannedAt:'';
+document.getElementById('resultSms').textContent=
+data.sms?'SMS status: '+data.sms:'';
+}
+
 async function startCamera(){
-  if(running) return;
-  try{
-    if(!scanner) scanner = new Html5Qrcode('reader');
-    const cameras = await Html5Qrcode.getCameras();
-    if(!cameras || !cameras.length) throw new Error('No camera was detected.');
-    const preferred = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[0];
-    await scanner.start(preferred.id, {fps:10, qrbox:{width:240,height:240}},
-      onScanSuccess, function(){});
-    running = true;
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('stopBtn').disabled = false;
-    showResult('Camera started. Point it at a learner QR code.', 'good');
-  }catch(err){showResult('Unable to start camera: ' + err.message, 'bad');}
+if(!sessionToken){
+showMessage('Invalid session. Open the scanner from the teacher dashboard.','error');
+return;
 }
+if(cameraRunning||processing)return;
+if(typeof Html5Qrcode==='undefined'){
+showMessage('Scanner library unavailable. Check your internet connection.','error');
+return;
+}
+
+showMessage('Starting camera. Allow camera permission.');
+resultBox.classList.remove('visible');
+
+try{
+if(!scanner)scanner=new Html5Qrcode('reader');
+
+await scanner.start(
+{facingMode:'environment'},
+{
+fps:10,
+qrbox:function(w,h){
+const size=Math.floor(Math.min(w*.78,h*.78,280));
+return {width:size,height:size};
+}
+},
+onQrDetected,
+function(){}
+);
+
+setButtons(true);
+showMessage('Camera active. Point it at a learner QR code.','success');
+
+}catch(error){
+setButtons(false);
+showMessage('Unable to start camera. Allow camera permission and use Chrome. '+(error.message||''),'error');
+}
+}
+
 async function stopCamera(){
-  if(!scanner || !running) return;
-  try{await scanner.stop(); running=false;}catch(e){}
-  document.getElementById('startBtn').disabled=false;
-  document.getElementById('stopBtn').disabled=true;
+if(!scanner||!cameraRunning){
+setButtons(false);
+return;
 }
-function onScanSuccess(decodedText){
-  if(processing) return;
-  processing=true;
-  stopCamera();
-  const token = String(decodedText || '').trim();
-  if(!token){processing=false;showResult('Invalid QR code.', 'bad');return;}
-  showResult('Verifying learner…', 'good');
-  const callback = 'qrCallback_' + Date.now();
-  window[callback] = function(result){
-    delete window[callback];
-    const scriptTag = document.getElementById(callback);
-    if(scriptTag) scriptTag.remove();
-    if(result && result.success){
-      let message = (result.name || 'Learner') + '\n' + (result.message || 'Marked SAFE.');
-      if(result.scannedAt) message += '\nScanned at: ' + result.scannedAt;
-      if(result.sms) message += '\nGuardian SMS: ' + result.sms;
-      showResult(message, 'good');
-    }else{
-      showResult((result && result.message) || 'Scan failed.', 'bad');
-    }
-  };
-  const s=document.createElement('script');
-  s.id=callback;
-  s.src=SCRIPT_URL+'?action=scan&token='+encodeURIComponent(token)+'&callback='+callback;
-  s.onerror=function(){delete window[callback];s.remove();showResult('Could not contact the safety system. Check your connection and try again.', 'bad');};
-  document.body.appendChild(s);
+try{
+await scanner.stop();
+await scanner.clear();
+}catch(error){
+console.warn(error);
 }
-function scanAnother(){
-  processing=false;
-  showResult('Ready for the next learner.', 'good');
-  startCamera();
+setButtons(false);
+showMessage('Camera stopped.');
 }
-function showResult(message, kind){
-  const el=document.getElementById('result');
-  el.textContent=message;
-  el.className=kind;
+
+function getToken(qrText){
+const value=String(qrText||'').trim();
+try{
+const url=new URL(value);
+const token=url.searchParams.get('token');
+if(token)return token;
+}catch(error){}
+return value;
 }
+
+async function onQrDetected(decodedText){
+if(processing)return;
+const now=Date.now();
+if(decodedText===lastScan&&now-lastScanTime<5000)return;
+
+const token=getToken(decodedText);
+if(!token||token.length>200){
+showMessage('Invalid QR code. Scan an assigned learner QR code.','error');
+return;
+}
+
+processing=true;
+lastScan=decodedText;
+lastScanTime=now;
+setButtons(false);
+showMessage('QR detected. Updating learner status...');
+
+try{
+await stopCamera();
+const data=await sendScan(token);
+displayResult(data);
+
+if(data.success){
+showMessage(
+data.alreadySafe?'Learner was already recorded as SAFE.':'Learner successfully marked SAFE.',
+'success'
+);
+}else{
+showMessage(data.message||'Scan failed.','error');
+}
+}catch(error){
+displayResult({success:false,message:error.message||'Unable to contact the system.'});
+showMessage('Connection error. Check your internet and try again.','error');
+}finally{
+processing=false;
+startButton.disabled=true;
+stopButton.disabled=true;
+anotherButton.disabled=false;
+}
+}
+
+function sendScan(token){
+return new Promise((resolve,reject)=>{
+const callback='learnerCallback_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+const script=document.createElement('script');
+let finished=false;
+
+const timeout=setTimeout(()=>{
+finishError(new Error('Scan request timed out.'));
+},20000);
+
+function cleanup(){
+clearTimeout(timeout);
+try{delete window[callback];}catch(e){window[callback]=undefined;}
+script.remove();
+}
+function finishSuccess(data){
+if(finished)return;
+finished=true;
+cleanup();
+if(!data||typeof data!=='object'){
+reject(new Error('Invalid server response.'));
+return;
+}
+resolve(data);
+}
+function finishError(error){
+if(finished)return;
+finished=true;
+cleanup();
+reject(error);
+}
+
+window[callback]=finishSuccess;
+script.onerror=()=>finishError(new Error('Unable to load Apps Script response.'));
+
+script.src=APPS_SCRIPT_URL+
+'?action=scan'+
+'&token='+encodeURIComponent(token)+
+'&callback='+encodeURIComponent(callback)+
+'&_='+Date.now();
+
+document.body.appendChild(script);
+});
+}
+
+async function scanAnother(){
+resultBox.classList.remove('visible');
+lastScan='';
+lastScanTime=0;
+showMessage('Ready to scan another learner.');
+await startCamera();
+}
+
+function backToDashboard(){
+if(!sessionToken){
+location.href=APPS_SCRIPT_URL;
+return;
+}
+location.href=dashboardUrl;
+}
+
+startButton.addEventListener('click',startCamera);
+stopButton.addEventListener('click',stopCamera);
+anotherButton.addEventListener('click',scanAnother);
+document.getElementById('backButton').addEventListener('click',backToDashboard);
+
+if(sessionToken){
+showMessage('Scanner opened from teacher dashboard. Ready to scan.','success');
+startButton.disabled=false;
+}else{
+showMessage('Invalid session. Open the scanner from the teacher dashboard.','error');
+startButton.disabled=true;
+}
+
+window.addEventListener('pagehide',()=>{
+if(scanner&&cameraRunning)scanner.stop().catch(()=>{});
+});
 </script>
 </body>
 </html>
