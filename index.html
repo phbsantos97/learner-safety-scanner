@@ -1,392 +1,112 @@
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#123c69">
+/* =====================================
+   GOOGLE APPS SCRIPT CONNECTION
+===================================== */
 
-<title>Learner Safety Monitoring - QR Scanner</title>
+// Replace with your actual deployed Apps Script URL.
+const GOOGLE_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+// Read temporary session from URL fragment.
+const params = new URLSearchParams(
+  window.location.hash.substring(1)
+);
 
-<style>
-* {
-  box-sizing:border-box;
+const SCANNER_SESSION = params.get('session');
+
+if (!SCANNER_SESSION) {
+  alert('No teacher authorization found. Please open the scanner from the Teacher Dashboard.');
 }
 
-body {
-  margin:0;
-  font-family:Arial,sans-serif;
-  background:#edf3f9;
-  color:#163354;
-}
 
-header {
-  background:#123c69;
-  color:white;
-  text-align:center;
-  padding:25px 12px;
-}
+/* =====================================
+   SEND SCANNED QR TO GOOGLE SHEETS
+===================================== */
 
-header h2 {
-  margin:5px;
-}
+function sendToGoogleSheets(qrToken) {
 
-header p {
-  font-size:13px;
-}
-
-main {
-  max-width:600px;
-  margin:25px auto;
-  padding:15px;
-}
-
-.card {
-  background:white;
-  border-radius:15px;
-  padding:22px;
-  margin-bottom:18px;
-  box-shadow:0 3px 15px #0001;
-  text-align:center;
-}
-
-button {
-  width:100%;
-  padding:15px;
-  margin-top:12px;
-  background:#1769aa;
-  color:white;
-  border:0;
-  border-radius:9px;
-  cursor:pointer;
-  font-weight:bold;
-  font-size:16px;
-}
-
-button.stop {
-  background:#b42318;
-}
-
-button:disabled {
-  background:#94a3b8;
-  cursor:not-allowed;
-}
-
-#reader {
-  width:100%;
-  margin:15px auto;
-  overflow:hidden;
-}
-
-#message {
-  padding:14px;
-  margin-top:15px;
-  border-radius:8px;
-  background:#edf3f9;
-  overflow-wrap:anywhere;
-  font-size:14px;
-}
-
-.note {
-  color:#64748b;
-  font-size:13px;
-  line-height:1.5;
-}
-
-.footer {
-  text-align:center;
-  color:#64748b;
-  font-size:12px;
-  padding:15px;
-}
-
-.logo {
-  font-size:38px;
-}
-</style>
-</head>
-
-<body>
-
-<header>
-  <div class="logo">🛡️</div>
-  <h2>LEARNER SAFETY</h2>
-  <h3>MONITORING SYSTEM</h3>
-  <p>TEACHER QR CODE SCANNER</p>
-</header>
-
-<main>
-
-<div class="card">
-
-  <h2>Scan Learner QR Code</h2>
-
-  <p class="note">
-    Position the learner's QR code inside the scanning box.
-    Use your phone's rear camera.
-  </p>
-
-  <div id="reader"></div>
-
-  <button id="start" onclick="startScanner()">
-    📷 START CAMERA
-  </button>
-
-  <button id="stop" class="stop"
-    onclick="stopScanner()" disabled>
-    STOP CAMERA
-  </button>
-
-  <div id="message">
-    Ready to scan. Press START CAMERA.
-  </div>
-
-</div>
-
-<div class="card">
-  <h3>How to use</h3>
-  <p class="note">
-    1. Allow camera access when requested.<br><br>
-    2. Point the rear camera at the learner's QR code.<br><br>
-    3. Wait for the QR code to be detected.<br><br>
-    4. The teacher portal will open for confirmation.
-  </p>
-</div>
-
-</main>
-
-<div class="footer">
-  LEARNER SAFETY MONITORING SYSTEM<br>
-  Authorized Teacher Access Only
-</div>
-
-<script>
-
-// ======================================
-// GOOGLE APPS SCRIPT CONFIGURATION
-// ======================================
-
-const APPS_SCRIPT_URL =
-'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
-
-// ======================================
-// SCANNER VARIABLES
-// ======================================
-
-let scanner = null;
-let running = false;
-let processing = false;
-
-// ======================================
-// MESSAGE DISPLAY
-// ======================================
-
-function message(text, color) {
-
-  const box = document.getElementById('message');
-
-  box.textContent = text;
-
-  box.style.background = color || '#edf3f9';
-
-}
-
-// ======================================
-// START CAMERA
-// ======================================
-
-async function startScanner() {
-
-  if (running || processing) return;
-
-  if (!navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia) {
-
-    message(
-      'Camera unavailable. Please use HTTPS Google Chrome.',
-      '#fee2e2'
-    );
-
+  if (!SCANNER_SESSION) {
+    alert('Teacher session missing. Please reconnect.');
     return;
   }
 
-  if (typeof Html5Qrcode === 'undefined') {
-
-    message(
-      'Scanner library failed to load. Check your internet connection.',
-      '#fee2e2'
-    );
-
+  if (!qrToken) {
+    alert('Invalid QR code.');
     return;
   }
 
-  try {
+  const callbackName =
+    'learnerScanCallback_' + Date.now();
 
-    scanner = new Html5Qrcode('reader');
+  const url = new URL(GOOGLE_SCRIPT_URL);
 
-    message('Opening camera...');
+  url.searchParams.set('action', 'scan');
+  url.searchParams.set('session', SCANNER_SESSION);
+  url.searchParams.set('token', qrToken);
+  url.searchParams.set('callback', callbackName);
+  url.searchParams.set('cache', String(Date.now()));
 
-    await scanner.start(
+  // Receive Google Apps Script response.
+  window[callbackName] = function(result) {
 
-      { facingMode: 'environment' },
+    delete window[callbackName];
 
-      {
-        fps: 10,
-        qrbox: {
-          width: 250,
-          height: 250
-        },
-        aspectRatio: 1
-      },
+    const oldScript = document.getElementById(
+      callbackName
+    );
 
-      async decodedText => {
+    if (oldScript) oldScript.remove();
 
-        if (processing) return;
+    if (result.success) {
 
-        processing = true;
-
-        message(
-          'QR CODE DETECTED! Opening teacher portal...',
-          '#dcfce7'
+      if (result.duplicate) {
+        alert(
+          'ALREADY COUNTED\n' +
+          result.name +
+          '\nNo duplicate SMS was sent.'
         );
-
-        document.getElementById('start').disabled = true;
-
-        await stopScanner();
-
-        openTeacherPortal(decodedText);
-
+      } else {
+        alert(
+          'LEARNER SUCCESSFULLY COUNTED!\n' +
+          result.name +
+          '\nStatus: ' + result.status +
+          '\nSMS: ' + result.sms
+        );
       }
 
-    );
+    } else {
 
-    running = true;
-
-    document.getElementById('start').disabled = true;
-    document.getElementById('stop').disabled = false;
-
-    message(
-      'CAMERA ACTIVE. Ready to scan learner QR code.',
-      '#dcfce7'
-    );
-
-  } catch(error) {
-
-    running = false;
-
-    document.getElementById('start').disabled = false;
-    document.getElementById('stop').disabled = true;
-
-    message(
-      'CAMERA ERROR: ' + error +
-      '. Check Chrome camera permissions.',
-      '#fee2e2'
-    );
-
-  }
-
-}
-
-// ======================================
-// STOP CAMERA
-// ======================================
-
-async function stopScanner() {
-
-  if (!scanner || !running) return;
-
-  try {
-
-    await scanner.stop();
-
-  } catch(error) {
-
-    console.log(error);
-
-  }
-
-  running = false;
-
-  document.getElementById('start').disabled = false;
-  document.getElementById('stop').disabled = true;
-
-}
-
-// ======================================
-// VALIDATE QR CODE
-// ======================================
-
-function openTeacherPortal(decodedText) {
-
-  try {
-
-    if (!APPS_SCRIPT_URL.includes('/exec') ||
-        APPS_SCRIPT_URL.includes('PASTE_YOUR')) {
-
-      throw new Error(
-        'Please configure your Apps Script deployment URL.'
+      alert(
+        'SCAN FAILED!\n' + result.message
       );
 
     }
 
-    let token = decodedText.trim();
+  };
 
-    // Supports token-only QR codes.
+  // Load JSONP response.
+  const script = document.createElement('script');
 
-    // Also supports QR codes containing a URL.
-    if (/^https?:\/\//i.test(token)) {
+  script.id = callbackName;
+  script.src = url.toString();
 
-      const scannedUrl = new URL(token);
+  script.onerror = function() {
+    delete window[callbackName];
+    script.remove();
+    alert('Unable to connect to Google Apps Script.');
+  };
 
-      token =
-        scannedUrl.searchParams.get('token') || '';
-
-    }
-
-    // Validate UUID token.
-    if (!/^[a-f0-9-]{36}$/i.test(token)) {
-
-      throw new Error(
-        'Invalid learner QR code. Please scan the correct QR.'
-      );
-
-    }
-
-    const destination = new URL(APPS_SCRIPT_URL);
-
-    destination.searchParams.set('token', token);
-
-    message('Redirecting to teacher portal...','#dcfce7');
-
-    window.location.href = destination.toString();
-
-  } catch(error) {
-
-    processing = false;
-
-    document.getElementById('start').disabled = false;
-
-    message(error.message,'#fee2e2');
-
-  }
-
+  document.body.appendChild(script);
 }
 
-// ======================================
-// CLEANUP
-// ======================================
 
-window.addEventListener('pagehide', () => {
+/* =====================================
+   CALL THIS AFTER QR DECODING
+===================================== */
 
-  if (scanner && running) {
-    scanner.stop().catch(() => {});
-  }
+function onLearnerQRDetected(decodedText) {
 
-});
+  // The decoded QR should contain the learner's token.
+  sendToGoogleSheets(decodedText);
 
-</script>
-
-</body>
-</html>
+}
