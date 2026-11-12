@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,7 +9,9 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -30,7 +31,13 @@ body {
   box-shadow: 0 5px 20px #0001;
 }
 
-h1 { font-size: 23px; }
+h1 {
+  font-size: 23px;
+}
+
+h3 {
+  margin-bottom: 20px;
+}
 
 #reader {
   width: 100%;
@@ -53,13 +60,26 @@ button:disabled {
   cursor: not-allowed;
 }
 
+#stopButton {
+  background: #b91c1c;
+}
+
+#againButton {
+  background: #2563eb;
+}
+
+#dashboardButton {
+  background: #475569;
+}
+
 #status {
   margin: 18px 0;
   padding: 15px;
   border-radius: 10px;
   background: #f1f5f9;
-  line-height: 1.6;
+  line-height: 1.7;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .success {
@@ -77,6 +97,11 @@ button:disabled {
   color: #64748b;
   line-height: 1.6;
 }
+
+.hidden {
+  display: none;
+}
+
 </style>
 </head>
 
@@ -85,6 +110,7 @@ button:disabled {
 <div class="container">
 
   <h1>LEARNER SAFETY</h1>
+
   <h3>QR CODE SCANNER</h3>
 
   <p>Scan the learner's official QR code.</p>
@@ -95,48 +121,93 @@ button:disabled {
     Ready to scan.
   </div>
 
-  <button id="startButton" onclick="startScanner()">
+  <button
+    id="startButton"
+    onclick="startScanner()">
     START CAMERA
   </button>
 
-  <button id="stopButton" onclick="stopScanner()">
+  <button
+    id="stopButton"
+    onclick="stopScanner()">
     STOP CAMERA
   </button>
 
- <button id="againButton" onclick="scanAgain()" hidden>
-  SCAN ANOTHER LEARNER
-</button>
+  <br>
 
-<button id="dashboardButton" onclick="backToDashboard()" hidden>
-  BACK TO TEACHER DASHBOARD
-</button>
+  <button
+    id="againButton"
+    onclick="scanAgain()"
+    hidden>
+    SCAN ANOTHER LEARNER
+  </button>
 
-  
-  
+  <button
+    id="dashboardButton"
+    onclick="backToDashboard()"
+    hidden>
+    BACK TO TEACHER DASHBOARD
+  </button>
+
   <p class="note">
     Allow camera access when requested.
-    Keep this page open while processing the learner's
-    safety record.
+    Keep this page open while processing the
+    learner's safety record.
   </p>
 
 </div>
 
 <script>
 
-// YOUR EXISTING GOOGLE APPS SCRIPT DEPLOYMENT
+// ==========================================
+// GOOGLE APPS SCRIPT WEB APP
+// ==========================================
+
 const GAS_URL =
 'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
-  
+
+
+// ==========================================
+// SCANNER VARIABLES
+// ==========================================
+
 let scanner = null;
 let scanning = false;
 let processing = false;
 
+
+// ==========================================
+// STATUS DISPLAY
+// ==========================================
+
 function showStatus(message, type) {
+
   const box = document.getElementById('status');
 
   box.className = type || '';
+
   box.textContent = message;
 }
+
+
+// ==========================================
+// BUTTON MANAGEMENT
+// ==========================================
+
+function updateButtons() {
+
+  document.getElementById('startButton').disabled =
+    scanning || processing;
+
+  document.getElementById('stopButton').disabled =
+    !scanning;
+
+}
+
+
+// ==========================================
+// START CAMERA
+// ==========================================
 
 async function startScanner() {
 
@@ -144,223 +215,379 @@ async function startScanner() {
 
   showStatus('Opening camera...', '');
 
+  document.getElementById('againButton').hidden = true;
+  document.getElementById('dashboardButton').hidden = true;
+
   try {
+
     if (!scanner) {
+
       scanner = new Html5Qrcode('reader');
+
     }
 
     await scanner.start(
+
       { facingMode: 'environment' },
+
       {
         fps: 10,
-        qrbox: { width: 250, height: 250 }
+        qrbox: {
+          width: 250,
+          height: 250
+        }
       },
+
       onScanSuccess,
+
       function() {}
+
     );
 
     scanning = true;
 
-    document.getElementById('startButton').disabled = true;
+    updateButtons();
 
     showStatus(
-      'CAMERA ACTIVE. Please scan a learner QR code.',
+      'CAMERA ACTIVE.\nPlease scan a learner QR code.',
       ''
     );
 
   } catch (error) {
+
+    scanning = false;
+
+    updateButtons();
+
     showStatus(
       'CAMERA ERROR: ' + String(error),
       'error'
     );
+
   }
+
 }
+
+
+// ==========================================
+// STOP CAMERA
+// ==========================================
 
 async function stopScanner() {
 
   if (scanner && scanning) {
+
     try {
+
       await scanner.stop();
+
       scanning = false;
+
     } catch (error) {
-      console.log(error);
+
+      console.log('Camera stop error:', error);
+
     }
+
   }
 
-  document.getElementById('startButton').disabled = false;
+  updateButtons();
+
 }
+
+
+// ==========================================
+// EXTRACT AND VALIDATE TOKEN
+// ==========================================
 
 function extractToken(text) {
 
   let url;
 
   try {
+
     url = new URL(text);
+
   } catch (error) {
+
     throw new Error('Invalid QR code.');
+
   }
 
-  // Only accept our Apps Script or GitHub scanner URLs.
+  // Only accept official learner QR URLs.
+
   const allowed =
     url.origin === 'https://script.google.com' ||
     url.origin === 'https://phbsantos97.github.io';
 
   if (!allowed) {
-    throw new Error('This is not an official learner QR code.');
+
+    throw new Error(
+      'This is not an official learner QR code.'
+    );
+
   }
 
   const token = url.searchParams.get('token');
 
   if (!token || !/^[a-f0-9-]{36}$/i.test(token)) {
+
     throw new Error('Invalid learner QR token.');
+
   }
 
   return token;
+
 }
-document.getElementById('againButton').hidden = true;
-document.getElementById('dashboardButton').hidden = true;
+
+
+// ==========================================
+// QR SCAN SUCCESS
+// ==========================================
+
 async function onScanSuccess(decodedText) {
 
-  if (processing) return;
+  if (processing || !scanning) return;
 
   let token;
 
   try {
+
     token = extractToken(decodedText);
+
   } catch (error) {
+
     showStatus(error.message, 'error');
+
     return;
+
   }
 
   processing = true;
 
+  updateButtons();
+
   await stopScanner();
 
-  document.getElementById('againButton').hidden = true;
-
   showStatus(
-    'QR CODE RECOGNIZED. Updating learner safety record...',
+    'QR CODE RECOGNIZED.\n\nUpdating learner safety record. Please wait...',
     ''
   );
 
   requestSafetyUpdate(token);
+
 }
 
-// JSONP: no cross-origin fetch required.
+
+// ==========================================
+// GOOGLE APPS SCRIPT JSONP REQUEST
+// ==========================================
 
 function requestSafetyUpdate(token) {
 
   const callbackName =
-    'learnerSafetyResponse_' + Date.now();
+    'learnerSafetyResponse_' +
+    Date.now() +
+    '_' +
+    Math.floor(Math.random() * 100000);
 
   let finished = false;
 
   const script = document.createElement('script');
 
   const timeout = setTimeout(function() {
+
     if (finished) return;
 
     finished = true;
+
     delete window[callbackName];
+
     script.remove();
 
     processing = false;
 
+    updateButtons();
+
     showStatus(
-      'TIMEOUT: Google Apps Script did not respond. Check your deployment URL and permissions.',
+      'TIMEOUT: Google Apps Script did not respond.\n\nCheck your deployment URL, permissions, and server response.',
       'error'
     );
 
-    document.getElementById('againButton').hidden = false;
-document.getElementById('dashboardButton').hidden = false;
+    showResultButtons();
 
   }, 20000);
+
+
+  // GOOGLE APPS SCRIPT RESPONSE
 
   window[callbackName] = function(result) {
 
     if (finished) return;
 
     finished = true;
+
     clearTimeout(timeout);
+
     delete window[callbackName];
+
     script.remove();
 
     processing = false;
 
+    updateButtons();
+
+
     if (result && result.success) {
 
       let message =
-        'LEARNER SUCCESSFULLY MARKED SAFE!\n\n' +
-        result.name +
-        '\n' + result.message;
+        'LEARNER SUCCESSFULLY MARKED SAFE!\n\n';
+
+      message +=
+        'Learner: ' +
+        (result.name || 'Learner') +
+        '\n';
+
+      message +=
+        result.message || 'Safety record updated successfully.';
+
 
       if (result.scannedAt) {
-        message += '\nScanned: ' + result.scannedAt;
+
+        message +=
+          '\n\nScanned: ' + result.scannedAt;
+
       }
 
+
       if (result.sms) {
-        message += '\nSMS: ' + result.sms;
+
+        message +=
+          '\nSMS: ' + result.sms;
+
       }
 
       showStatus(message, 'success');
 
     } else {
+
       showStatus(
-        'SERVER ERROR: ' +
-        (result ? result.message : 'Invalid response'),
+
+        'SERVER ERROR:\n' +
+        (result && result.message
+          ? result.message
+          : 'Invalid server response.'),
+
         'error'
+
       );
+
     }
 
-    document.getElementById('againButton').hidden = false;
+    showResultButtons();
+
   };
+
+
+  // CONNECTION ERROR
 
   script.onerror = function() {
 
     if (finished) return;
 
     finished = true;
+
     clearTimeout(timeout);
+
     delete window[callbackName];
+
     script.remove();
 
     processing = false;
 
+    updateButtons();
+
     showStatus(
-      'GOOGLE APPS SCRIPT CONNECTION FAILED. The request could not load. Verify the deployed /exec URL and web app access settings.',
+      'GOOGLE APPS SCRIPT CONNECTION FAILED.\n\nThe request could not load. Verify the deployed /exec URL and web app access settings.',
       'error'
     );
 
-    document.getElementById('againButton').hidden = false;
+    showResultButtons();
+
   };
+
+
+  // SEND REQUEST
 
   script.src =
     GAS_URL +
     '?action=scan' +
     '&token=' + encodeURIComponent(token) +
-    '&callback=' + callbackName;
+    '&callback=' + encodeURIComponent(callbackName);
 
   document.body.appendChild(script);
+
 }
+
+
+// ==========================================
+// SHOW RESULT BUTTONS
+// ==========================================
+
+function showResultButtons() {
+
+  document.getElementById('againButton').hidden = false;
+
+  document.getElementById('dashboardButton').hidden = false;
+
+}
+
+
+// ==========================================
+// SCAN ANOTHER LEARNER
+// ==========================================
 
 async function scanAgain() {
 
+  if (processing) return;
+
   document.getElementById('againButton').hidden = true;
 
-  showStatus('Ready to scan another learner.', '');
+  document.getElementById('dashboardButton').hidden = true;
+
+  showStatus(
+    'Ready to scan another learner.',
+    ''
+  );
 
   await startScanner();
+
 }
 
-  
+
+// ==========================================
+// BACK TO TEACHER DASHBOARD
+// ==========================================
+
 function backToDashboard() {
 
-  // Return to the Google Apps Script teacher login/dashboard.
+  if (processing) return;
+
   window.location.href = GAS_URL;
 
 }
 
-  
+
+// ==========================================
+// INITIAL BUTTON STATE
+// ==========================================
+
+document.getElementById('againButton').hidden = true;
+
+document.getElementById('dashboardButton').hidden = true;
+
+updateButtons();
+
 </script>
 
 </body>
