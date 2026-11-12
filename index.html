@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Learner Safety QR Scanner</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+* {box-sizing:border-box}
+body {
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#edf3f9;
+  color:#163354;
+}
+header {
+  background:#123c69;
+  color:white;
+  text-align:center;
+  padding:24px 12px;
+}
+main {
+  max-width:600px;
+  margin:25px auto;
+  padding:15px;
+}
+.card {
+  background:white;
+  border-radius:15px;
+  padding:22px;
+  box-shadow:0 3px 15px #0001;
+  text-align:center;
+}
+button {
+  width:100%;
+  padding:15px;
+  margin-top:12px;
+  background:#1769aa;
+  color:white;
+  border:0;
+  border-radius:9px;
+  font-weight:bold;
+  font-size:16px;
+}
+button.stop {background:#b42318}
+#reader {
+  width:100%;
+  margin:15px auto;
+}
+#message {
+  padding:12px;
+  margin-top:12px;
+  border-radius:8px;
+  overflow-wrap:anywhere;
+}
+.note {
+  color:#64748b;
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h2>LEARNER SAFETY</h2>
+  <h3>QR CODE SCANNER</h3>
+  <p>Teacher Monitoring Portal</p>
+</header>
+
+<main>
+<div class="card">
+
+  <h2>Scan Learner QR Code</h2>
+  <p class="note">
+    Position the learner's QR code inside the scanning box.
+  </p>
+
+  <div id="reader"></div>
+
+  <button id="start" onclick="startScanner()">
+    START CAMERA
+  </button>
+
+  <button class="stop" onclick="stopScanner()">
+    STOP CAMERA
+  </button>
+
+  <div id="message">
+    Waiting for camera...
+  </div>
+
+</div>
+</main>
+
+<script>
+let scanner;
+let running = false;
+let processing = false;
+
+// Replace with your actual deployed Apps Script URL.
+const APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbyPO1z5UPQ6fJn9TKUZz4cIYD3N4-gxa8DTDm_v-pvbUsEnX3cZNpVlurgiDXQIt2h5/exec';
+
+function message(text) {
+  document.getElementById('message').textContent = text;
+}
+
+async function startScanner() {
+
+  if (running || processing) return;
+
+  if (!navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia) {
+    message('Camera is unavailable. Please use HTTPS Chrome.');
+    return;
+  }
+
+  if (typeof Html5Qrcode === 'undefined') {
+    message('QR scanner library failed to load.');
+    return;
+  }
+
+  scanner = new Html5Qrcode('reader');
+
+  try {
+
+    await scanner.start(
+      {facingMode:'environment'},
+      {
+        fps:10,
+        qrbox:{width:250,height:250},
+        aspectRatio:1
+      },
+      decodedText => {
+
+        if (processing) return;
+
+        processing = true;
+        message('QR CODE DETECTED. Opening teacher portal...');
+
+        stopScanner().then(() => {
+          openTeacherPortal(decodedText);
+        });
+
+      }
+    );
+
+    running = true;
+    message('Camera is active. Ready to scan.');
+
+  } catch(error) {
+
+    running = false;
+    message('Camera error: ' + error);
+
+  }
+}
+
+async function stopScanner() {
+
+  if (!scanner || !running) return;
+
+  try {
+    await scanner.stop();
+  } catch(error) {
+    console.log(error);
+  }
+
+  running = false;
+}
+
+function openTeacherPortal(decodedText) {
+
+  try {
+
+    if (APPS_SCRIPT_URL.indexOf('/exec') === -1) {
+      throw new Error('Apps Script deployment URL is not configured.');
+    }
+
+    let token = decodedText.trim();
+
+    // Accept either a token-only QR or an Apps Script QR URL.
+    if (/^https?:\/\//i.test(token)) {
+      const scannedUrl = new URL(token);
+      token = scannedUrl.searchParams.get('token') || '';
+    }
+
+    if (!/^[a-f0-9-]{36}$/i.test(token)) {
+      throw new Error('Invalid learner QR code.');
+    }
+
+    const destination = new URL(APPS_SCRIPT_URL);
+    destination.searchParams.set('token', token);
+
+    window.location.assign(destination.toString());
+
+  } catch(error) {
+
+    processing = false;
+    message(error.message);
+
+  }
+}
+</script>
+
+</body>
+</html>
