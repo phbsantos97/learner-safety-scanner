@@ -537,6 +537,29 @@ async function backDashboard() {
 }
 
 
+function backDashboard() {
+
+  const dashboard = DASHBOARD_URL;
+  const session = DASHBOARD_SESSION;
+
+  if (!dashboard || !session) {
+    showMessage(
+      'Dashboard session information is missing.',
+      true
+    );
+    return;
+  }
+
+  const url = new URL(dashboard);
+
+  url.searchParams.set('page', 'dashboard');
+  url.searchParams.set('session', session);
+
+  window.location.href = url.toString();
+
+}
+
+ 
 /************************************************
  RESULT DISPLAY
 ************************************************/
