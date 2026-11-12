@@ -103,10 +103,16 @@ button:disabled {
     STOP CAMERA
   </button>
 
-  <button id="againButton" onclick="scanAgain()" hidden>
-    SCAN ANOTHER LEARNER
-  </button>
+ <button id="againButton" onclick="scanAgain()" hidden>
+  SCAN ANOTHER LEARNER
+</button>
 
+<button id="dashboardButton" onclick="backToDashboard()" hidden>
+  BACK TO TEACHER DASHBOARD
+</button>
+
+  
+  
   <p class="note">
     Allow camera access when requested.
     Keep this page open while processing the learner's
@@ -211,7 +217,8 @@ function extractToken(text) {
 
   return token;
 }
-
+document.getElementById('againButton').hidden = true;
+document.getElementById('dashboardButton').hidden = true;
 async function onScanSuccess(decodedText) {
 
   if (processing) return;
@@ -265,6 +272,7 @@ function requestSafetyUpdate(token) {
     );
 
     document.getElementById('againButton').hidden = false;
+document.getElementById('dashboardButton').hidden = false;
 
   }, 20000);
 
@@ -344,6 +352,15 @@ async function scanAgain() {
   await startScanner();
 }
 
+  
+function backToDashboard() {
+
+  // Return to the Google Apps Script teacher login/dashboard.
+  window.location.href = GAS_URL;
+
+}
+
+  
 </script>
 
 </body>
