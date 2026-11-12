@@ -2,116 +2,118 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<meta charset="UTF-8">
+  <title>Learner Safety QR Scanner</title>
 
-<meta name="viewport"
- content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/html5-qrcode"></script>
 
-<title>Learner Safety QR Scanner</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+    body {
+      margin: 0;
+      padding: 18px;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #172033;
+    }
 
-<style>
+    .container {
+      max-width: 500px;
+      margin: 20px auto;
+      background: white;
+      padding: 22px;
+      border-radius: 18px;
+      box-shadow: 0 5px 20px #0001;
+      text-align: center;
+    }
 
-* {
-  box-sizing: border-box;
-}
+    h2 {
+      color: #166534;
+    }
 
-body {
-  margin: 0;
-  padding: 18px;
-  font-family: Arial, sans-serif;
-  background: #f1f5f9;
-  color: #172033;
-}
+    #reader {
+      width: 100%;
+      margin: 20px auto;
+      overflow: hidden;
+    }
 
-.container {
-  max-width: 500px;
-  margin: 20px auto;
-  background: white;
-  padding: 22px;
-  border-radius: 18px;
-  box-shadow: 0 5px 20px #0001;
-  text-align: center;
-}
+    button {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 9px;
+      margin: 6px 0;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
-h2 {
-  color: #166534;
-}
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
 
-#reader {
-  width: 100%;
-  margin: 20px auto;
-  overflow: hidden;
-}
+    .start {
+      background: #15803d;
+      color: white;
+    }
 
-button {
-  width: 100%;
-  padding: 14px;
-  border: 0;
-  border-radius: 9px;
-  margin: 6px 0;
-  font-size: 15px;
-  font-weight: bold;
-  cursor: pointer;
-}
+    .stop {
+      background: #dc2626;
+      color: white;
+    }
 
-button:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-}
+    .another {
+      background: #2563eb;
+      color: white;
+    }
 
-.start {
-  background: #15803d;
-  color: white;
-}
+    .back {
+      background: #e2e8f0;
+      color: #172033;
+    }
 
-.stop {
-  background: #dc2626;
-  color: white;
-}
+    #result {
+      display: none;
+      padding: 18px;
+      margin: 15px 0;
+      border-radius: 12px;
+      background: #f0fdf4;
+      overflow-wrap: anywhere;
+    }
 
-.another {
-  background: #2563eb;
-  color: white;
-}
+    #result.error {
+      background: #fef2f2;
+    }
 
-.back {
-  background: #e2e8f0;
-  color: #172033;
-}
+    #result h3 {
+      margin-top: 0;
+    }
 
-#result {
-  display: none;
-  padding: 18px;
-  margin: 15px 0;
-  border-radius: 12px;
-  background: #f0fdf4;
-}
+    .successText {
+      color: #15803d;
+    }
 
-#result.error {
-  background: #fef2f2;
-}
+    .errorText {
+      color: #dc2626;
+    }
 
-#result h3 {
-  margin-top: 0;
-}
+    .small {
+      font-size: 12px;
+      color: #64748b;
+    }
 
-.successText {
-  color: #15803d;
-}
-
-.errorText {
-  color: #dc2626;
-}
-
-.small {
-  font-size: 12px;
-  color: #64748b;
-}
-
-</style>
+    .status {
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 
 <body>
@@ -122,30 +124,27 @@ button:disabled {
 
   <p>QR Code Monitoring Scanner</p>
 
-  <p class="small" id="connection">
+  <p class="small status" id="connection">
     Checking teacher session...
   </p>
 
   <div id="reader"></div>
 
-  <button class="start" id="startBtn"
-    onclick="startCamera()">
+  <button class="start" id="startBtn" disabled>
     START CAMERA
   </button>
 
-  <button class="stop" id="stopBtn"
-    onclick="stopCamera()" disabled>
+  <button class="stop" id="stopBtn" disabled>
     STOP CAMERA
   </button>
 
-  <div id="result"></div>
+  <div id="result" aria-live="polite"></div>
 
-  <button class="another" id="anotherBtn"
-    onclick="scanAnother()" disabled>
+  <button class="another" id="anotherBtn" disabled>
     SCAN ANOTHER LEARNER
   </button>
 
-  <button class="back" onclick="backDashboard()">
+  <button class="back" id="backBtn">
     BACK TO DASHBOARD
   </button>
 
@@ -162,47 +161,150 @@ button:disabled {
  CONFIGURATION
 ************************************************/
 
-
-const params = new URLSearchParams(window.location.search);
+const params = new URLSearchParams(
+  window.location.search
+);
 
 const SESSION = params.get('session') || '';
 
 const API_URL = params.get('api') ||
   'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
 
-const DASHBOARD_URL = params.get('dashboard') || 'https://script.google.com/macros/s/AKfycbzgFuR_SwJ-ewwwR0SyJ1pwyI2USRJk8_1gmYAT1W7_yNP0y2Yvibz1pkwlRO3Orgde/exec';
+const DASHBOARD_URL = params.get('dashboard') ||
+  API_URL;
 
 const DASHBOARD_SESSION =
   params.get('dashboardSession') || SESSION;
 
 
-async function validateTeacherSession() {
+/************************************************
+ ELEMENTS
+************************************************/
 
-  if (!SESSION || !API_URL) {
+const connection =
+  document.getElementById('connection');
+
+const startBtn =
+  document.getElementById('startBtn');
+
+const stopBtn =
+  document.getElementById('stopBtn');
+
+const anotherBtn =
+  document.getElementById('anotherBtn');
+
+const backBtn =
+  document.getElementById('backBtn');
+
+const resultBox =
+  document.getElementById('result');
+
+
+/************************************************
+ VARIABLES
+************************************************/
+
+let scanner = null;
+let scanning = false;
+let processing = false;
+let sessionValid = false;
+let lastToken = '';
+
+let requestTimeout = null;
+
+
+/************************************************
+ INITIALIZATION
+************************************************/
+
+window.addEventListener('load', initializeScanner);
+
+async function initializeScanner() {
+
+  if (!SESSION || !API_URL || !DASHBOARD_URL) {
+
+    connection.textContent =
+      'Invalid session. Open the scanner from the teacher dashboard.';
+
+    startBtn.disabled = true;
+
+    return;
+  }
+
+  connection.textContent =
+    'Validating teacher session...';
+
+  sessionValid = await validateTeacherSession();
+
+  if (!sessionValid) {
+
+    startBtn.disabled = true;
+
+    return;
+  }
+
+  try {
+
+    scanner = new Html5Qrcode('reader');
+
+    connection.textContent =
+      'Teacher session connected. Ready to scan.';
+
+    startBtn.disabled = false;
+
+  } catch (error) {
+
+    connection.textContent =
+      'Unable to initialize QR scanner.';
 
     showMessage(
-      'Invalid session. Open the scanner from the teacher dashboard.',
+      'QR scanner initialization failed.',
       true
     );
 
-    return false;
   }
+
+}
+
+
+/************************************************
+ SESSION VALIDATION
+************************************************/
+
+async function validateTeacherSession() {
 
   try {
 
     const url = new URL(API_URL);
 
-    url.searchParams.set('action', 'validateSession');
-    url.searchParams.set('session', SESSION);
+    url.searchParams.set(
+      'action',
+      'validateSession'
+    );
 
-    const response = await fetch(url.toString());
+    url.searchParams.set(
+      'session',
+      SESSION
+    );
 
-    const result = await response.json();
+    const response = await fetch(
+      url.toString(),
+      { method: 'GET' }
+    );
 
-    if (!result.valid) {
+    if (!response.ok) {
+      throw new Error('Server connection failed.');
+    }
+
+    const data = await response.json();
+
+    if (!data || data.valid !== true) {
+
+      connection.textContent =
+        'Teacher session expired. Please log in again.';
 
       showMessage(
-        'Teacher session expired. Please log in again.',
+        'Invalid or expired teacher session.',
         true
       );
 
@@ -213,8 +315,11 @@ async function validateTeacherSession() {
 
   } catch (error) {
 
+    connection.textContent =
+      'Unable to validate teacher session.';
+
     showMessage(
-      'Unable to connect to Google Apps Script.',
+      'Unable to connect to Google Apps Script. Check your deployment and internet connection.',
       true
     );
 
@@ -224,45 +329,23 @@ async function validateTeacherSession() {
 
 }
 
- 
-let scanner = null;
-let scanning = false;
-let processing = false;
-let lastToken = '';
-
-/************************************************
- INITIALIZE
-************************************************/
-
-window.onload = function() {
-
-  const connection =
-    document.getElementById('connection');
-
-  if (!SESSION || !API_URL || !DASHBOARD_URL) {
-
-    connection.textContent =
-      'Invalid session. Open the scanner from the teacher dashboard.';
-
-    document.getElementById('startBtn').disabled = true;
-
-    return;
-  }
-
-  connection.textContent =
-    'Teacher session connected. Ready to scan.';
-
-  scanner = new Html5Qrcode('reader');
-
-};
 
 /************************************************
  START CAMERA
 ************************************************/
 
+startBtn.addEventListener('click', startCamera);
+
 async function startCamera() {
 
-  if (!scanner || scanning || processing) return;
+  if (
+    !scanner ||
+    !sessionValid ||
+    scanning ||
+    processing
+  ) {
+    return;
+  }
 
   try {
 
@@ -286,19 +369,22 @@ async function startCamera() {
 
     scanning = true;
 
-    document.getElementById('startBtn').disabled = true;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    anotherBtn.disabled = true;
 
-    document.getElementById('stopBtn').disabled = false;
+    connection.textContent =
+      'Camera active. Ready to scan.';
 
     showMessage(
       'Camera started. Point it at the learner QR code.',
       false
     );
 
-  } catch(error) {
+  } catch (error) {
 
     showMessage(
-      'Camera error: ' + error,
+      'Camera error: ' + String(error),
       true
     );
 
@@ -306,9 +392,12 @@ async function startCamera() {
 
 }
 
+
 /************************************************
  STOP CAMERA
 ************************************************/
+
+stopBtn.addEventListener('click', stopCamera);
 
 async function stopCamera() {
 
@@ -320,17 +409,17 @@ async function stopCamera() {
 
     scanning = false;
 
-    document.getElementById('startBtn').disabled = false;
+    startBtn.disabled = !sessionValid;
+    stopBtn.disabled = true;
 
-    document.getElementById('stopBtn').disabled = true;
+  } catch (error) {
 
-  } catch(error) {
-
-    console.error(error);
+    console.error('Camera stop error:', error);
 
   }
 
 }
+
 
 /************************************************
  QR SCAN SUCCESS
@@ -338,15 +427,18 @@ async function stopCamera() {
 
 async function onScanSuccess(decodedText) {
 
-  if (processing) return;
+  if (processing || !sessionValid) return;
 
   const token = String(decodedText).trim();
 
-  // Only accept the UUID token format.
-  if (!/^[a-f0-9-]{36}$/i.test(token)) {
+  // Validate UUID format.
+
+  if (
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(token)
+  ) {
 
     showMessage(
-      'Invalid learner QR code.',
+      'Invalid learner QR code. Please scan an assigned learner QR code.',
       true
     );
 
@@ -355,6 +447,8 @@ async function onScanSuccess(decodedText) {
 
   processing = true;
   lastToken = token;
+
+  anotherBtn.disabled = true;
 
   await stopCamera();
 
@@ -367,8 +461,9 @@ async function onScanSuccess(decodedText) {
 
 }
 
+
 /************************************************
- SEND SCAN REQUEST TO APPS SCRIPT
+ SEND SCAN REQUEST
 ************************************************/
 
 function sendScanRequest(token) {
@@ -379,49 +474,51 @@ function sendScanRequest(token) {
     '_' +
     Math.floor(Math.random() * 10000);
 
-  const script = document.createElement('script');
+  const script =
+    document.createElement('script');
 
-  const timeout = setTimeout(function() {
-
-    cleanup();
-
-    processing = false;
-
-    showMessage(
-      'Request timed out. Check your internet connection and try again.',
-      true
-    );
-
-    document.getElementById('anotherBtn').disabled = false;
-
-  }, 30000);
+  let completed = false;
 
   function cleanup() {
 
-    clearTimeout(timeout);
+    if (completed) return;
+
+    completed = true;
+
+    clearTimeout(requestTimeout);
 
     delete window[callbackName];
 
-    if (script.parentNode) {
-      script.parentNode.removeChild(script);
-    }
+    script.remove();
 
   }
 
-  window[callbackName] = function(data) {
+  function finish(data, failed) {
 
     cleanup();
 
     processing = false;
 
-    if (!data || !data.success) {
+    anotherBtn.disabled = false;
+
+    if (failed) {
 
       showMessage(
-        data ? data.message : 'Scan failed.',
+        data || 'Unable to contact the monitoring system.',
         true
       );
 
-      document.getElementById('anotherBtn').disabled = false;
+      return;
+    }
+
+    if (!data || data.success !== true) {
+
+      showMessage(
+        data && data.message
+          ? data.message
+          : 'Scan failed.',
+        true
+      );
 
       return;
     }
@@ -429,25 +526,34 @@ function sendScanRequest(token) {
     if (data.alreadySafe) {
 
       showMessage(
-        'ALREADY SAFE: ' + data.name +
-        '<br>' + data.message +
-        '<br>SMS: ' + (data.sms || 'Previously processed'),
+        'ALREADY SAFE\n' +
+        (data.name || 'Learner') +
+        '\n' +
+        (data.message || 'Learner was previously marked safe.') +
+        '\nSMS: ' +
+        (data.sms || 'Previously processed'),
         false
       );
 
     } else {
 
       showMessage(
-        'LEARNER SUCCESSFULLY MARKED SAFE!' +
-        '<br><br><strong>' + escapeHTML(data.name) + '</strong>' +
-        '<br>Scanned: ' + escapeHTML(data.scannedAt || '') +
-        '<br>SMS: ' + escapeHTML(data.sms || 'Not available'),
+        'LEARNER SUCCESSFULLY MARKED SAFE!\n' +
+        (data.name || 'Learner') +
+        '\nScanned: ' +
+        (data.scannedAt || '') +
+        '\nSMS: ' +
+        (data.sms || 'Not available'),
         false
       );
 
     }
 
-    document.getElementById('anotherBtn').disabled = false;
+  }
+
+  window[callbackName] = function(data) {
+
+    finish(data, false);
 
   };
 
@@ -462,45 +568,61 @@ function sendScanRequest(token) {
 
   script.onerror = function() {
 
-    cleanup();
-
-    processing = false;
-
-    showMessage(
+    finish(
       'Unable to contact the monitoring system.',
       true
     );
 
-    document.getElementById('anotherBtn').disabled = false;
-
   };
+
+  requestTimeout = setTimeout(function() {
+
+    finish(
+      'Request timed out. Check your internet connection.',
+      true
+    );
+
+  }, 30000);
 
   document.body.appendChild(script);
 
 }
 
+
 /************************************************
  SCAN ANOTHER LEARNER
 ************************************************/
 
+anotherBtn.addEventListener(
+  'click',
+  scanAnother
+);
+
 async function scanAnother() {
 
-  if (scanning || processing) return;
+  if (scanning || processing || !sessionValid) {
+    return;
+  }
 
   lastToken = '';
 
-  document.getElementById('result').style.display = 'none';
+  resultBox.style.display = 'none';
 
-  document.getElementById('anotherBtn').disabled = true;
+  anotherBtn.disabled = true;
 
   await startCamera();
 
 }
 
+
 /************************************************
  BACK TO DASHBOARD
 ************************************************/
 
+backBtn.addEventListener(
+  'click',
+  backDashboard
+);
 
 async function backDashboard() {
 
@@ -508,100 +630,74 @@ async function backDashboard() {
     await stopCamera();
   }
 
-  // Return to the Apps Script web app.
-  // Do not destroy the current teacher session.
-
-  const dashboard =
-    params.get('dashboard') || '';
-
-  const session =
-    params.get('dashboardSession') || SESSION;
-
-  if (!dashboard || !session) {
+  if (!DASHBOARD_URL || !DASHBOARD_SESSION) {
 
     showMessage(
-      'Dashboard link or teacher session is missing. Please open the scanner from the teacher dashboard.',
+      'Dashboard link or teacher session is missing.',
       true
     );
 
     return;
   }
 
-  const url = new URL(dashboard);
+  try {
 
-  url.searchParams.set('page', 'dashboard');
-  url.searchParams.set('session', session);
+    const url = new URL(DASHBOARD_URL);
 
-  window.location.replace(url.toString());
+    url.searchParams.set(
+      'page',
+      'dashboard'
+    );
 
-}
+    url.searchParams.set(
+      'session',
+      DASHBOARD_SESSION
+    );
 
+    window.location.href = url.toString();
 
-function backDashboard() {
+  } catch (error) {
 
-  const dashboard = DASHBOARD_URL;
-  const session = DASHBOARD_SESSION;
-
-  if (!dashboard || !session) {
     showMessage(
-      'Dashboard session information is missing.',
+      'Invalid dashboard URL.',
       true
     );
-    return;
+
   }
-
-  const url = new URL(dashboard);
-
-  url.searchParams.set('page', 'dashboard');
-  url.searchParams.set('session', session);
-
-  window.location.href = url.toString();
 
 }
 
- 
+
 /************************************************
  RESULT DISPLAY
 ************************************************/
 
 function showMessage(message, error) {
 
-  const result =
-    document.getElementById('result');
+  resultBox.style.display = 'block';
 
-  result.style.display = 'block';
+  resultBox.className =
+    error ? 'error' : '';
 
-  result.className = error ? 'error' : '';
+  const heading =
+    document.createElement('h3');
 
-  result.innerHTML =
-    '<h3 class="' +
-    (error ? 'errorText' : 'successText') +
-    '">' +
-    (error ? 'SCAN FAILED' : 'SCAN RESULT') +
-    '</h3>' +
-    '<p>' + message + '</p>';
+  heading.className =
+    error ? 'errorText' : 'successText';
 
-}
+  heading.textContent =
+    error ? 'SCAN FAILED' : 'SCAN RESULT';
 
-/************************************************
- HTML ESCAPING
-************************************************/
+  const paragraph =
+    document.createElement('p');
 
-function escapeHTML(value) {
+  // textContent prevents HTML injection.
+  paragraph.style.whiteSpace = 'pre-line';
+  paragraph.textContent = String(message);
 
-  return String(value ?? '').replace(
-    /[&<>"']/g,
-    function(c) {
-
-      return {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[c];
-
-    }
+  resultBox.replaceChildren(
+    heading,
+    paragraph
   );
 
 }
