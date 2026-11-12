@@ -271,9 +271,66 @@ async function initializeScanner() {
  SESSION VALIDATION
 ************************************************/
 
+
 async function validateTeacherSession() {
 
-  try {
+  return new Promise((resolve) => {
+
+    const callbackName =
+      'validateCallback_' +
+      Date.now() +
+      '_' +
+      Math.floor(Math.random() * 10000);
+
+    const script = document.createElement('script');
+
+    let finished = false;
+
+    function cleanup() {
+
+      if (finished) return;
+
+      finished = true;
+
+      clearTimeout(timeout);
+
+      delete window[callbackName];
+
+      script.remove();
+
+    }
+
+    function finish(valid) {
+
+      cleanup();
+
+      resolve(valid);
+
+    }
+
+    window[callbackName] = function(data) {
+
+      if (data && data.valid === true) {
+
+        finish(true);
+
+      } else {
+
+        connection.textContent =
+          'Teacher session expired. Please log in again.';
+
+        showMessage(
+          data && data.message
+            ? data.message
+            : 'Invalid teacher session.',
+          true
+        );
+
+        finish(false);
+
+      }
+
+    };
 
     const url = new URL(API_URL);
 
@@ -287,48 +344,50 @@ async function validateTeacherSession() {
       SESSION
     );
 
-    const response = await fetch(
-      url.toString(),
-      { method: 'GET' }
+    url.searchParams.set(
+      'callback',
+      callbackName
     );
 
-    if (!response.ok) {
-      throw new Error('Server connection failed.');
-    }
+    const timeout = setTimeout(function() {
 
-    const data = await response.json();
-
-    if (!data || data.valid !== true) {
+      cleanup();
 
       connection.textContent =
-        'Teacher session expired. Please log in again.';
+        'Unable to validate teacher session.';
 
       showMessage(
-        'Invalid or expired teacher session.',
+        'Session validation timed out. Check your internet connection.',
         true
       );
 
-      return false;
-    }
+      resolve(false);
 
-    return true;
+    }, 15000);
 
-  } catch (error) {
+    script.onerror = function() {
 
-    connection.textContent =
-      'Unable to validate teacher session.';
+      cleanup();
 
-    showMessage(
-      'Unable to connect to Google Apps Script. Check your deployment and internet connection.',
-      true
-    );
+      connection.textContent =
+        'Unable to connect to Google Apps Script.';
 
-    return false;
+      showMessage(
+        'Session validation failed. Check your Apps Script deployment.',
+        true
+      );
 
-  }
+      resolve(false);
+
+    };
+
+    script.src = url.toString();
+
+    document.body.appendChild(script);
+
+  });
 
 }
-
 
 /************************************************
  START CAMERA
